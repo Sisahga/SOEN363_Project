@@ -20,11 +20,9 @@ CREATE TABLE player (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    team_id INTEGER UNIQUE NOT NULL,
-    FOREIGN KEY(team_id) REFERENCES team(id) ON DELETE CASCADE
 );
 
--- WEAK ENTITY, depends on team
+-- WEAK ENTITY: depends on team & player entities
 CREATE TABLE team_member (
     player_id INTEGER NOT NULL,
     team_id INTEGER NOT NULL,
@@ -33,9 +31,10 @@ CREATE TABLE team_member (
     FOREIGN KEY(team_id) REFERENCES team(id) ON DELETE CASCADE
 );
 
+-- IS-A: team_stats extends team as it uses the same primary key as the team table
 CREATE TABLE team_stats (
+    team_id INTEGER PRIMARY KEY,
     league_id INTEGER NOT NULL,
-    team_id INTEGER NOT NULL,
     rank INTEGER,
     games_played INTEGER,
     wins INTEGER,
