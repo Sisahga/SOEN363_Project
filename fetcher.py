@@ -1,9 +1,13 @@
 import json
+import os
 
+from dotenv import load_dotenv
 import requests
 
+load_dotenv()
+x_auth_token = os.getenv('X_AUTH_TOKEN')
 football_data_org_headers = {
-    "X-Auth-Token": "7d4fb926a6f841c08db0952194aa0caf"
+    "X-Auth-Token": x_auth_token
 }
 
 url = "https://api.football-data.org/v4/competitions/DED/standings"
