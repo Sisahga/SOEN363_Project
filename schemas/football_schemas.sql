@@ -1,8 +1,8 @@
 CREATE TABLE league (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL,
-    country VARCHAR(50),
-    api_sports_id INTEGER UNIQUE
+    name VARCHAR(100) NOT NULL,
+    country VARCHAR(50) NOT NULL,
+    api_football_id INTEGER UNIQUE NOT NULL
 );
 
 CREATE TABLE team (
@@ -13,6 +13,7 @@ CREATE TABLE team (
     season INTEGER NOT NULL,
     founded INTEGER,
     national_team BOOLEAN,
+    api_football_id INTEGER,
     FOREIGN KEY(league_id) REFERENCES league(id) ON DELETE CASCADE
 );
 
@@ -115,7 +116,7 @@ JOIN player_stats as ps
 ON p.id = ps.player_id;
 
 -- 2. Limited access view (Restrict them from seeing market value)
-CREATE VIEW special_access_player_stats
+CREATE VIEW limited_access_player_stats
 AS SELECT
        p.id,
        p.first_name,
