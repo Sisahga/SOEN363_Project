@@ -99,4 +99,90 @@ def store_teams():
     conn.close()
 
 # fetch_and_store_leagues(2022)
+
+
+#Fetch Players
+# Param 1: api_football_team_id - ID of the team in the API
+# Param 2: internal_team_id - ID of the team in the database
+# Param 3: season - the season for fetching player data
+# Param 4: cur - cursor for executing queries
+
+def fetch_and_store_players(api_football_team_id, internal_team_id, season, cur):
+    url = f"https://v3.football.api-sports.io/players?team={api_football_team_id}&season={season}"
+    response = requests.get(url, headers=api_football_headers)
+    players = response.json().get("response")
+
+    for player_info in players:
+        player = player_info["player"]
+        player_id = player["id"]
+        name = player["name"]
+        birth_date = player["birth"]["date"]
+        nationality = player["nationality"]
+        position = player_info["statistics"][0]["games"]["position"]
+
+        # Insert into the player table
+        cur.execute("""
+        INSERT INTO player (id, name, birth_date, nationality, position)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (id) DO NOTHING
+        """, (
+            player_id, name, birth_date, nationality, position
+        ))
+
+        # Insert into the team_member table
+        cur.execute("""
+        INSERT INTO team_member (team_id, player_id, season)
+        VALUES (%s, %s, %s)
+        """, (
+            internal_team_id, player_id, season
+        ))
+        
+# Fetches player stats and populates the player_stats table
+# Param 1: api_football_team_id - ID of the team in the API
+# Param 2: season - the season for fetching stats
+# Param 3: cur - cursor for executing queries
+
+def fetch_and_store_player_stats(api_football_team_id, season, cur):
+    url = f"https://v3.football.api-sports.io/players?team={api_football_team_id}&season={season}"
+    response = requests.get(url, headers=api_football_headers)
+    players = response.json().get("response")
+
+    for player_info in players:
+        player_id = player_info["player"]["id"]
+        stats = player_info["statistics"][0]  # Assuming the first entry is the main stats
+
+        appearances = stats["games"]["appearences"]
+        goals = stats["goals"]["total"]
+        assists = stats["goals"]["assists"]
+        yellow_cards = stats["cards"]["yellow"]
+        red_cards = stats["cards"]["red"]
+
+        # Insert into the player_stats table
+        cur.execute("""
+        INSERT INTO player_stats (player_id, season, appearances, goals, assists, yellow_cards, red_cards)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            player_id, season, appearances, goals, assists, yellow_cards, red_cards
+        ))
+# Fetches all players and stats for teams in the database
+# Communicates with 'fetch_and_store_players' and 'fetch_and_store_player_stats'
+def store_players_and_stats():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("SELECT id, api_football_id FROM team")
+    rows = cur.fetchall()
+    for row in rows:
+        team_id, api_team_id = row
+        season = 2022  # Set the season to fetch data
+        fetch_and_store_players(api_team_id, team_id, season, cur)
+        fetch_and_store_player_stats(api_team_id, season, cur)
+        print(f"Stored players and stats for team {api_team_id}.")
+
+    conn.commit()
+    print("Successfully stored players and player stats.")
+    cur.close()
+    conn.close()
+    
 store_teams()
