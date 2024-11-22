@@ -184,5 +184,55 @@ def store_players_and_stats():
     print("Successfully stored players and player stats.")
     cur.close()
     conn.close()
-    
+
+# Fetches transfers for players in a specific team during a season
+# Param 1: api_football_team_id - ID of the team in the API
+# Param 2: internal_team_id - ID of the team in the database
+# Param 3: season - the season for fetching transfer data
+# Param 4: cur - cursor for executing queries
+def fetch_and_store_transfers(api_football_team_id, internal_team_id, season, cur):
+    url = f"https://v3.football.api-sports.io/transfers?team={api_football_team_id}&season={season}"
+    response = requests.get(url, headers=api_football_headers)
+    transfers = response.json().get("response")
+
+    if transfers is None or len(transfers) == 0:
+        print(f"No transfer data available for team {api_football_team_id} during season {season}")
+        return
+
+    for transfer_info in transfers:
+        player_id = transfer_info["player"]["id"]
+        player_name = transfer_info["player"]["name"]
+        from_team = transfer_info["team"]["from"]["name"] if "from" in transfer_info["team"] else None
+        to_team = transfer_info["team"]["to"]["name"] if "to" in transfer_info["team"] else None
+        transfer_date = transfer_info["date"]
+        transfer_fee = transfer_info["fee"] if "fee" in transfer_info else None
+
+        # Insert transfer data into the transfers table
+        cur.execute("""
+        INSERT INTO transfers (player_id, from_team, to_team, transfer_date, transfer_fee, season)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            player_id, from_team, to_team, transfer_date, transfer_fee, season
+        ))
+
+# Fetches all transfer data for teams in the database
+# Communicates with 'fetch_and_store_transfers'
+def store_transfers():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("SELECT id, api_football_id FROM team")
+    rows = cur.fetchall()
+    for row in rows:
+        team_id, api_team_id = row
+        season = 2022  # Set the season to fetch data
+        fetch_and_store_transfers(api_team_id, team_id, season, cur)
+        print(f"Stored transfers for team {api_team_id}.")
+
+    conn.commit()
+    print("Successfully stored transfers.")
+    cur.close()
+    conn.close()
+
 store_teams()
