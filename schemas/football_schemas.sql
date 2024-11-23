@@ -2,7 +2,8 @@ CREATE TABLE league (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     country VARCHAR(50) NOT NULL,
-    api_football_id INTEGER UNIQUE NOT NULL
+    api_football_id INTEGER UNIQUE NOT NULL,
+    fb_org_id INTEGER
 );
 
 CREATE TABLE team (
@@ -14,6 +15,7 @@ CREATE TABLE team (
     founded INTEGER,
     national_team BOOLEAN,
     api_football_id INTEGER,
+    fb_org_id INTEGER,
     FOREIGN KEY(league_id) REFERENCES league(id) ON DELETE CASCADE
 );
 
@@ -21,13 +23,17 @@ CREATE TABLE player (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    nationality VARCHAR(70)
+    position VARCHAR(30),
+    nationality VARCHAR(70),
+    api_football_id INTEGER,
+    fb_org_id INTEGER
 );
 
 -- WEAK ENTITY: depends on team & player entities
 CREATE TABLE team_member (
     player_id INTEGER NOT NULL,
     team_id INTEGER NOT NULL,
+    season INTEGER NOT NULL,
     PRIMARY KEY (player_id, team_id),
     FOREIGN KEY(player_id) REFERENCES player(id) ON DELETE CASCADE,
     FOREIGN KEY(team_id) REFERENCES team(id) ON DELETE CASCADE
@@ -39,6 +45,7 @@ CREATE TABLE team_stats (
     league_id INTEGER NOT NULL,
     rank INTEGER NOT NULL,
     games_played INTEGER,
+    season INTEGER,
     wins INTEGER,
     losses INTEGER,
     draws INTEGER,
@@ -54,13 +61,10 @@ CREATE TABLE player_stats (
     player_id INTEGER NOT NULL,
     team_id INTEGER NOT NULL,
     league_id INTEGER NOT NULL,
-    games_played INTEGER NOT NULL,
+    season INTEGER NOT NULL,
+    games_played INTEGER,
     goals INTEGER,
     assists INTEGER,
-    tackles INTEGER,
-    dribble_attempts INTEGER,
-    dribble_success INTEGER,
-    fouls_committed INTEGER,
     yellow_cards INTEGER,
     red_cards INTEGER,
     market_value INTEGER -- use for hardcode view
