@@ -17,7 +17,19 @@ CREATE TABLE team (
     national_team BOOLEAN,
     api_football_id INTEGER,
     fb_org_id INTEGER,
+    club_colors VARCHAR(75),
     FOREIGN KEY(league_id) REFERENCES league(id) ON DELETE CASCADE
+);
+
+CREATE TABLE coach (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    fb_org_id INTEGER,
+    team_id INTEGER REFERENCES team (id),
+    nationality VARCHAR(50),
+    contract_start TIMESTAMP,
+    contract_end TIMESTAMP
 );
 
 CREATE TABLE player (
@@ -27,7 +39,7 @@ CREATE TABLE player (
     position VARCHAR(30),
     nationality VARCHAR(70),
     api_football_id INTEGER,
-    fb_org_id INTEGER,
+    fb_org_id INTEGER
 );
 
 -- WEAK ENTITY: depends on team & player entities

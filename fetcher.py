@@ -1,8 +1,10 @@
 import json
 import os
 import time
+from operator import contains
 
 from dotenv import load_dotenv
+from datetime import datetime
 import requests
 import psycopg2
 
@@ -273,6 +275,7 @@ def store_players_and_stats():
     LEFT JOIN team_member tm ON t.id = tm.team_id
     WHERE t.fb_org_id IS NOT NULL
       AND tm.team_id IS NULL
+    LIMIT 10
     """)
     rows = cur.fetchall()
     print("Number of teams: " + str(len(rows)))
@@ -471,12 +474,120 @@ def set_fb_org_id_in_team_db():
     cur.close()
     conn.close()
 
-# TODO: Store players from API Football for teams in FB Org.
 
+def store_coach_for_team():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT t.id, t.fb_org_id FROM team t 
+    WHERE fb_org_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM coach c
+        WHERE c.team_id = t.id
+      );
+    """)
+    teams = cur.fetchall()
+
+    for team in teams:
+        team_id = team[0]
+        fb_org_team_id = team[1]
+        url = f"https://api.football-data.org/v4/teams/{fb_org_team_id}"
+        response = requests.get(url, headers=football_data_org_headers)
+        raw_res = response.json()
+        try:
+            coach = raw_res["coach"]
+        except KeyError:
+            print(f"Sleeping for 67 seconds to account for HTTP 229...")
+            time.sleep(67)
+            try:
+                response = requests.get(url, headers=football_data_org_headers)
+                raw_res = response.json()
+                coach = raw_res["coach"]
+                conn.commit()
+            except KeyError:
+                print(f"Coach not found for team {fb_org_team_id}")
+                break
+
+        coach_fb_org_id = coach["id"]
+        first_name = coach["firstName"]
+        last_name = coach["lastName"]
+        nationality = coach["nationality"]
+        contract = coach["contract"]
+        raw_contract_start = contract["start"]
+        raw_contract_end = contract["until"]
+        print(raw_contract_start, raw_contract_end)
+        if raw_contract_start is not None and raw_contract_end is not None:
+            contract_start = raw_contract_start + "-01"
+            contract_end = raw_contract_end + "-01"
+
+            start_date_obj = datetime.strptime(contract_start, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(contract_end, '%Y-%m-%d')
+        else:
+            start_date_obj = None
+            end_date_obj = None
+
+        print(f"Getting coach for team {str(fb_org_team_id)}.\nHead Coach: {first_name} {last_name}\n")
+
+        cur.execute("""
+        INSERT INTO coach (fb_org_id, first_name, last_name, team_id, nationality, contract_start, contract_end)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (coach_fb_org_id, first_name, last_name, team_id, nationality, start_date_obj, end_date_obj))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def store_club_colors_for_team():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT id, fb_org_id FROM team WHERE fb_org_id IS NOT NULL AND club_colors IS NULL
+    """)
+
+    teams = cur.fetchall()
+    for team in teams:
+        team_id = team[0]
+        team_fb_org_id = team[1]
+        url = f"https://api.football-data.org/v4/teams/{team_fb_org_id}"
+        response = requests.get(url, headers=football_data_org_headers)
+        raw_res = response.json()
+
+        try:
+            club_colors = raw_res["clubColors"]
+        except KeyError:
+            print(f"Sleeping for 67 seconds to account for HTTP 229...")
+            time.sleep(67)
+            try:
+                response = requests.get(url, headers=football_data_org_headers)
+                raw_res = response.json()
+                club_colors = raw_res["clubColors"]
+                conn.commit()
+            except KeyError:
+                print(f"Coach not found for team {team_fb_org_id}")
+                break
+
+        print("Getting club colors for team " + str(team_fb_org_id) + ".\n")
+        print(club_colors, team_id)
+        cur.execute("""
+        UPDATE team SET club_colors = %s WHERE id = %s
+        """, (club_colors, team_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# store_club_colors_for_team()
+# store_coach_for_team()
 # set_fb_org_id_in_team_db()
 # store_teams()
 # store_teams_for_leagues_in_api2()
-store_players_and_stats()
+# store_players_and_stats()
 # fetch_and_store_teams_api2()
 # fetch_and_store_leagues(2022)
 # fetch_and_store_leagues_api2()
