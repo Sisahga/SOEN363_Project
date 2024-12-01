@@ -109,46 +109,68 @@ CREATE TRIGGER unique_rank_check
     FOR EACH ROW
 EXECUTE FUNCTION enforce_unique_rank();
 
--- Hardcoded views based on user access rights
--- 1. Special access view.
-CREATE VIEW special_access_player_stats
-AS SELECT
-       p.id,
-       p.first_name,
-       p.last_name,
-       ps.team_id,
-       ps.league_id,
-       ps.games_played,
-       ps.goals,
-       ps.assists,
-       ps.tackles,
-       ps.dribble_attempts,
-       ps.dribble_success,
-       ps.fouls_committed,
-       ps.yellow_cards,
-       ps.red_cards,
-       ps.market_value
-FROM player as p
-JOIN player_stats as ps
-ON p.id = ps.player_id;
 
--- 2. Limited access view (Restrict them from seeing market value)
-CREATE VIEW limited_access_player_stats
+-- REMOVED BECAUSE COULDN'T ACCESS MARKET VALUE WITH FREE TIER.
+-- --> REPLACED WITH COACH VIEWS BELOW.
+-- -- Hardcoded views based on user access rights
+-- -- 1. Special access view.
+-- CREATE VIEW special_access_player_stats
+-- AS SELECT
+--        p.id,
+--        p.first_name,
+--        p.last_name,
+--        ps.team_id,
+--        ps.league_id,
+--        ps.games_played,
+--        ps.goals,
+--        ps.assists,
+--        ps.yellow_cards,
+--        ps.red_cards,
+--        ps.market_value
+-- FROM player as p
+-- JOIN player_stats as ps
+-- ON p.id = ps.player_id;
+--
+-- -- 2. Limited access view (Restrict them from seeing market value)
+-- CREATE VIEW limited_access_player_stats
+-- AS SELECT
+--        p.id,
+--        p.first_name,
+--        p.last_name,
+--        ps.team_id,
+--        ps.league_id,
+--        ps.games_played,
+--        ps.goals,
+--        ps.assists,
+--        ps.yellow_cards,
+--        ps.red_cards
+-- FROM player as p
+-- JOIN player_stats as ps
+-- ON p.id = ps.player_id;
+
+
+-- -- Hardcoded views based on user access rights
+-- -- 1. Special access view.
+CREATE VIEW special_access_coach_details
 AS SELECT
-       p.id,
-       p.first_name,
-       p.last_name,
-       ps.team_id,
-       ps.league_id,
-       ps.games_played,
-       ps.goals,
-       ps.assists,
-       ps.tackles,
-       ps.dribble_attempts,
-       ps.dribble_success,
-       ps.fouls_committed,
-       ps.yellow_cards,
-       ps.red_cards
-FROM player as p
-JOIN player_stats as ps
-ON p.id = ps.player_id;
+       c.first_name,
+       c.last_name,
+       t.name AS team_name,
+       c.nationality,
+       c.contract_start,
+       c.contract_end
+FROM coach AS c
+LEFT JOIN team AS t
+ON c.team_id = t.id;
+
+-- -- 2. Limited access view (Restrict them from seeing contract details)
+CREATE VIEW limited_access_coach_details
+AS SELECT
+       c.first_name,
+       c.last_name,
+       t.name AS team_name,
+       c.nationality
+FROM coach AS c
+LEFT JOIN team AS t
+ON c.team_id = t.id;
+

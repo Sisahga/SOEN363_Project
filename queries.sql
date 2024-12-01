@@ -116,10 +116,6 @@ SELECT
     ps.games_played,
     ps.goals,
     ps.assists,
-    ps.tackles,
-    ps.dribble_attempts,
-    ps.dribble_success,
-    ps.fouls_committed,
     ps.yellow_cards,
     ps.red_cards,
     ps.market_value

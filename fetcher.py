@@ -1,7 +1,6 @@
 import json
 import os
 import time
-from operator import contains
 
 from dotenv import load_dotenv
 from datetime import datetime
@@ -581,6 +580,7 @@ def store_club_colors_for_team():
     conn.commit()
     cur.close()
     conn.close()
+
 
 # store_club_colors_for_team()
 # store_coach_for_team()
