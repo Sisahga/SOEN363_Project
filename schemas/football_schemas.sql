@@ -3,7 +3,8 @@ CREATE TABLE league (
     name VARCHAR(100) NOT NULL,
     country VARCHAR(50) NOT NULL,
     api_football_id INTEGER UNIQUE NOT NULL,
-    fb_org_id INTEGER
+    fb_org_id INTEGER,
+    fb_org_league_code VARCHAR(5)
 );
 
 CREATE TABLE team (
@@ -26,7 +27,7 @@ CREATE TABLE player (
     position VARCHAR(30),
     nationality VARCHAR(70),
     api_football_id INTEGER,
-    fb_org_id INTEGER
+    fb_org_id INTEGER,
 );
 
 -- WEAK ENTITY: depends on team & player entities

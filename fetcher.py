@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 from dotenv import load_dotenv
 import requests
@@ -57,6 +58,89 @@ def fetch_and_store_leagues(year):
     conn.close()
 
 
+# Football data org (2nd API)
+def fetch_and_store_leagues_api2():
+    url = "https://api.football-data.org/v4/competitions/"
+    response = requests.get(url, headers=football_data_org_headers)
+    leagues = response.json().get("competitions")
+
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    print(json.dumps(leagues, indent=4))
+
+    for league in leagues:
+        league_name = league["name"]
+        league_country = league["area"]["name"]
+        cur.execute("""
+        SELECT id FROM league WHERE name = %s AND country = %s
+        """, (
+            league_name, league_country
+        ))
+        result = cur.fetchall()
+
+        if len(result) == 1:
+            fb_org_id = league["id"]
+            fb_org_code = league["code"]
+            db_id = result[0][0]
+            cur.execute("""
+            UPDATE league SET fb_org_id = %s, fb_org_league_code = %s WHERE id = %s
+            """, (fb_org_id, fb_org_code, db_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def fetch_and_store_teams_api2():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT * FROM league WHERE fb_org_id IS NOT NULL
+    """)
+    result = cur.fetchall()
+
+    for row in result:
+        db_league_id = row[0]
+        league_code = row[5]
+        url = f"https://api.football-data.org/v4/competitions/{league_code}/standings"
+        response = requests.get(url, headers=football_data_org_headers)
+        raw_res = response.json()
+        teams = response.json().get("standings")[0]["table"]
+        area = raw_res["area"]
+        league = raw_res["competition"]
+
+        ext_league_name = league["code"]
+        ext_country = area["name"]
+
+        print(json.dumps(area, indent=4))
+        print(json.dumps(league, indent=4))
+        print(json.dumps(teams, indent=4))
+        print("League ID: " + str(db_league_id))
+        for team in teams:
+            team_id = team["team"]["id"]
+            print(team["team"]["name"])
+            print(ext_league_name)
+            print(ext_country)
+            cur.execute("""
+            SELECT t.* FROM team t JOIN league l ON t.league_id = %s WHERE t.name = %s AND l.name = %s AND l.country = %s
+            """, (db_league_id, team["team"]["name"], ext_league_name, ext_country))
+
+            db_res = cur.fetchall()
+            if len(db_res) == 1:
+                print(team_id)
+                cur.execute("""
+                UPDATE team SET fb_org_id = %s WHERE id = %s
+                """, (team_id, team))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 # Fetches teams within a league for a specific season.
 # Param 1: year - season of the league
 # Param 2: api_football_id - to communicate with URL
@@ -91,6 +175,7 @@ def store_teams():
 
     cur.execute("SELECT id, api_football_id FROM league")
     rows = cur.fetchall()
+    print("Number of leagues: " + str(len(rows)))
     for row in rows:
         fetch_and_store_teams(2022, row[1], row[0], cur)
         print(f"Stored teams from league {row[1]}.")
@@ -99,9 +184,6 @@ def store_teams():
     print("Successfully stored teams.")
     cur.close()
     conn.close()
-
-
-# fetch_and_store_leagues(2022)
 
 
 # Fetch Players
@@ -121,6 +203,8 @@ def fetch_and_store_players(api_football_team_id, internal_team_id, season, cur)
         last_name = player["lastname"]
         nationality = player["nationality"]
         position = player_info["statistics"][0]["games"]["position"]
+
+        print("Storing Player: " + first_name + " " + last_name)
 
         # Insert into the player table
         cur.execute("""
@@ -183,14 +267,24 @@ def store_players_and_stats():
     print("DB connection successful.")
     cur = conn.cursor()
 
-    cur.execute("SELECT id, api_football_id FROM team")
+    cur.execute("""
+    SELECT t.id, t.api_football_id
+    FROM team t
+    LEFT JOIN team_member tm ON t.id = tm.team_id
+    WHERE t.fb_org_id IS NOT NULL
+      AND tm.team_id IS NULL
+    """)
     rows = cur.fetchall()
+    print("Number of teams: " + str(len(rows)))
     for row in rows:
+        print("Row: " + str(row))
         team_id, api_team_id = row
         season = 2022  # Set the season to fetch data
         fetch_and_store_players(api_team_id, team_id, season, cur)
         fetch_and_store_player_stats(api_team_id, season, cur)
         print(f"Stored players and stats for team {api_team_id}.")
+
+        time.sleep(2)
 
     conn.commit()
     print("Successfully stored players and player stats.")
@@ -304,3 +398,85 @@ def store_players_and_stats():
 
 # store_teams()
 # store_players_and_stats()
+
+def store_teams_for_leagues_in_api2():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT * FROM league WHERE fb_org_id IS NOT NULL
+    """)
+    leagues = cur.fetchall()
+    for league in leagues:
+        print(league)
+        fetch_and_store_teams(2022, league[3], league[0], cur)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def set_fb_org_id_in_team_db():
+    conn = psycopg2.connect(**db_params)
+    print("DB connection successful.")
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT * FROM league WHERE fb_org_id IS NOT NULL
+    """)
+    leagues = cur.fetchall()
+    for league in leagues:
+        league_code = league[5]
+        db_league_id = league[0]
+        cur.execute("""
+        SELECT * FROM team WHERE league_id = %s
+        """, (league[0],))
+        teams = cur.fetchall()
+
+        url = f"https://api.football-data.org/v4/competitions/{league_code}/standings"
+
+        response = requests.get(url, headers=football_data_org_headers)
+        raw_res = response.json()
+        teams = response.json().get("standings")[0]["table"]
+        print("TEAMS:\n", teams)
+        area = raw_res["area"]
+        league = raw_res["competition"]
+        ext_league_name = league["name"]
+        ext_country = area["name"]
+        print(ext_league_name, ext_country)
+        for team in teams:
+            print("Query Parameters:")
+            print("Team Short Name (ILIKE):", f"%{team['team']['shortName']}%")
+            print("League Name:", ext_league_name)
+            print("Country:", ext_country)
+
+            team_name = team["team"]["name"].replace("-", " ").replace(" FC", "").replace(" SCO", "")
+            team_short_name = team["team"]["shortName"].replace("RC ", "").replace("Stade de ", "")
+
+            cur.execute("""
+            SELECT t.* FROM team t JOIN league l ON t.league_id = l.id WHERE (t.name ILIKE %s OR t.name ILIKE %s) AND l.name = %s AND l.country = %s
+            """, (f"%{team_name}%", f"%{team_short_name}%", ext_league_name, ext_country))
+            records = cur.fetchall()
+            if len(records) > 0:
+                team_id = records[0][7]
+                print("Records[0]: ", str(team_id))
+                print("TEAM MATCHES FOUND: " + str(len(records)))
+                print("UPDATING TEAM: " + str(team_id) + " with fb_org_id " + str(team["team"]["id"]))
+                cur.execute("""
+                UPDATE team SET fb_org_id = %s WHERE api_football_id = %s
+                """, (team["team"]["id"], team_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# TODO: Store players from API Football for teams in FB Org.
+
+# set_fb_org_id_in_team_db()
+# store_teams()
+# store_teams_for_leagues_in_api2()
+store_players_and_stats()
+# fetch_and_store_teams_api2()
+# fetch_and_store_leagues(2022)
+# fetch_and_store_leagues_api2()
