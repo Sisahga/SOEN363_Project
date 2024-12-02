@@ -22,7 +22,6 @@ mongo_uri = 'mongodb+srv://everyone:everyone@macmeecluster.he3iw.mongodb.net/'
 
 
 def migrate_data():
-    # Establish PostgreSQL connection
     pg_conn = psycopg2.connect(**pg_params)
     pg_cursor = pg_conn.cursor()
 
@@ -72,7 +71,7 @@ def migrate_data():
             "nationality": player[4]
         }
         result = players_collection.insert_one(player_data)
-        player_id_map[player[0]] = result.inserted_id  # Map PostgreSQL playerId to MongoDB ObjectId
+        player_id_map[player[0]] = result.inserted_id
 
     team_id_map = {}
     for team in teams:
@@ -138,7 +137,6 @@ def migrate_coaches_data():
     coaches_collection = mongo_db["coaches"]
     teams_collection = mongo_db["teams"]
 
-    # Fetch all teams from MongoDB and create a mapping from team_id to ObjectId
     team_mapping = {}
     for team in teams_collection.find():
         team_mapping[team['teamId']] = team['_id']
@@ -149,29 +147,25 @@ def migrate_coaches_data():
     """)
     coaches = pg_cursor.fetchall()
 
-    # Insert coaches data into MongoDB
     for coach in coaches:
-        team_object_id = team_mapping.get(coach[4])  # Get the ObjectId for the team_id
+        team_object_id = team_mapping.get(coach[4])
 
         if team_object_id is None:
             print(f"Team ID {coach[4]} not found for coach {coach[1]} {coach[2]}")
             continue
 
         coach_data = {
-            "_id": ObjectId(),  # Optional, MongoDB will generate if not specified
+            "_id": ObjectId(),
             "first_name": coach[1],
             "last_name": coach[2],
             "fb_org_id": coach[3],
-            "team_id": team_object_id,  # Use the ObjectId from the team mapping
+            "team_id": team_object_id,
             "nationality": coach[5],
-            "contract_start": coach[6] if coach[6] else None,  # Ensure it's in the right format (ISODate)
+            "contract_start": coach[6] if coach[6] else None,
             "contract_end": coach[7] if coach[7] else None
         }
-
-        # Insert the coach data into MongoDB
         coaches_collection.insert_one(coach_data)
 
-    # Close the PostgreSQL connection
     pg_cursor.close()
     pg_conn.close()
 
